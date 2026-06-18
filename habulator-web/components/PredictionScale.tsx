@@ -83,17 +83,19 @@ export default function PredictionScale({ lower, pred, upper, group, scale = 'mg
         />
       </div>
 
-      {/* values pinned to markers: 0 at left end, estimate at the diamond, upper at right end */}
-      <div className="relative h-7">
-        <div className="absolute left-0 flex flex-col items-start">
+      {/* values — evenly-spaced row so the labels can never overlap, however
+          narrow the interval is on the fixed axis. The bar above carries the
+          true positions (diamond = estimate, caps = bounds). */}
+      <div className="flex items-end justify-between gap-2">
+        <div className="flex flex-col items-start">
           <span className="tnum font-mono text-[12px] font-semibold text-ink-300">{fmt(lower)}</span>
           <span className="text-[9px] text-ink-500">lower</span>
         </div>
-        <div className="absolute flex flex-col items-start" style={{ left: `${Math.min(prPct, 78)}%` }}>
+        <div className="flex flex-col items-center">
           <span className="tnum font-mono text-[13px] font-semibold leading-none" style={{ color: C }}>{fmt(pred)}</span>
           <span className="text-[9px] text-ink-500">best estimate</span>
         </div>
-        <div className="absolute flex flex-col items-center" style={{ left: `${Math.min(hiPct, 94)}%`, transform: 'translateX(-50%)' }}>
+        <div className="flex flex-col items-end">
           <span className="tnum font-mono text-[12px] font-semibold text-ink-300">{fmt(upper)}</span>
           <span className="text-[9px] text-ink-500">upper</span>
         </div>
