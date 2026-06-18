@@ -135,7 +135,7 @@ export default function HomePage() {
             Habulator v1.0
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-ink-400">
-            <span>© 2026 HABulator. All rights reserved.</span>
+            <span>© 2026 Rohit Shukla</span>
             <span aria-hidden className="text-line-strong">·</span>
             <Link
               href="/privacy"

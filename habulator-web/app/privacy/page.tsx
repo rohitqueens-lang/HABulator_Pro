@@ -93,7 +93,7 @@ export default function PrivacyPage() {
 
       <footer className="mt-6 border-t border-line py-6">
         <p className="mx-auto max-w-7xl px-4 text-center text-[11px] text-ink-400 sm:px-6 lg:px-8">
-          © 2026 HABulator. All rights reserved.
+          © 2026 Rohit Shukla
         </p>
       </footer>
     </div>
