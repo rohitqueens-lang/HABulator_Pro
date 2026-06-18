@@ -216,24 +216,16 @@ Figures are written to `figures/` (600 dpi PNG + vector PDF).
 - **Uncertainty** — conformalized quantile regression (CQR), 90% nominal coverage;
   empirical held-out coverage 0.91–0.95 across groups.
 - **Explainability** — SHAP TreeExplainer (exact Shapley values for tree models),
-  on the log(1 + biovolume) model scale.
+  on the log model scale.
 - **Validation** — predictive skill via station-grouped cross-validation (no station in
   both train and test); coverage via a separate random split (conformal coverage requires
   exchangeability).
 - **Data** — U.S. EPA Great Lakes National Program Office (GLNPO / GLENDA), 2001–2021
-  (2,316 samples, 73 stations).
+  (73 stations).
 
 ---
 
-## Results (held-out)
 
-| Group | Cross-validated R² (log scale) | 90% interval coverage |
-|---|:---:|:---:|
-| EDIAT | 0.68 | 0.95 |
-| CYANO | 0.57 | 0.92 |
-| CHLOR | 0.45 | 0.93 |
-| CRYPT | 0.35 | 0.91 |
-| LDIAT | 0.25 | 0.92 |
 
 ---
 
