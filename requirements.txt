@@ -1,0 +1,10 @@
+# Research pipeline + manuscript figures.
+# (The inference service has its own pinned deps in habulator-api/requirements.txt.)
+xgboost>=2.0.0
+scikit-learn>=1.4.0
+optuna>=3.6.0
+pandas>=2.2.0
+numpy>=1.26.0
+scipy>=1.13.0
+matplotlib>=3.8.0
+geopandas>=1.0.0

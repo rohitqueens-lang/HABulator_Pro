@@ -1,0 +1,49 @@
+{
+  "smearing_factor": 1.0175734940729024,
+  "confidence": 0.9,
+  "method": "CQR (random-split calibration); point model refit on full data",
+  "cqr_correction": 0.03626495294590289,
+  "features": [
+    "TEMP",
+    "TP",
+    "SI",
+    "NO23",
+    "STN_DEPTH_M",
+    "DOY_sin",
+    "DOY_cos",
+    "NP_ratio"
+  ],
+  "feature_limits": {
+    "TEMP": [
+      0.0,
+      30.0
+    ],
+    "TP": [
+      0.1,
+      200.0
+    ],
+    "SI": [
+      0.0,
+      5.0
+    ],
+    "NO23": [
+      0.0,
+      3.0
+    ],
+    "STN_DEPTH_M": [
+      1.0,
+      400.0
+    ]
+  },
+  "feature_labels": {
+    "TEMP": "Water Temperature (\u00b0C)",
+    "TP": "Total Phosphorus (\u00b5g/L)",
+    "SI": "Silica (mg/L)",
+    "NO23": "Nitrate+Nitrite (mg/L)",
+    "STN_DEPTH_M": "Station Depth (m)",
+    "DOY_sin": "Day-of-Year (sin)",
+    "DOY_cos": "Day-of-Year (cos)",
+    "NP_ratio": "N:P Ratio"
+  },
+  "target": "EDIAT"
+}

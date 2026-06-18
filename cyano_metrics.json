@@ -1,0 +1,42 @@
+{
+  "target": "CYANO",
+  "skill_track": {
+    "design": "group-by-station; headline = GroupKFold(5) CV (leakage-controlled)",
+    "cv_r2_log": 0.5745151473963241,
+    "cv_rmse_log": 0.27719243546370875,
+    "train_r2_log": 0.8597900157635064,
+    "overfit_gap_log": 0.2852748683671823,
+    "single_split_r2_log": 0.43923009081368714,
+    "single_split_rmse_log": 0.39536661917260735,
+    "single_split_r2_raw": -0.09334707874484316,
+    "single_split_rmse_raw": 2.5718510448524636,
+    "hpo_cv_rmse_log": 0.24946798449306282,
+    "n_test_split": 359,
+    "stations_test_split": 11
+  },
+  "coverage_track": {
+    "design": "intervals: quantile regressors on random 70% fit, CQR-calibrated on 15%, conformal coverage on 15% test (point-model-independent)",
+    "n_fit": 1621,
+    "n_calib": 347,
+    "n_test": 348,
+    "confidence": 0.9,
+    "cqr_correction": 0.006724327802658081,
+    "coverage_test": 0.9224137931034483,
+    "mean_width_test": 1.0818318128585815,
+    "deployed_point_model": "refit on all 2316 rows (skill from Track-A CV)",
+    "deployed_point_model_n": 2316
+  },
+  "best_params": {
+    "n_estimators": 840,
+    "max_depth": 7,
+    "learning_rate": 0.0166203668312642,
+    "subsample": 0.8244811489476257,
+    "colsample_bytree": 0.5485636355826343,
+    "min_child_weight": 4,
+    "reg_alpha": 0.10533902141396065,
+    "reg_lambda": 0.041573622800101795,
+    "gamma": 0.18941327653860315
+  },
+  "smearing_factor": 1.0151456669001848,
+  "seed": 42
+}

@@ -1,0 +1,42 @@
+{
+  "target": "LDIAT",
+  "skill_track": {
+    "design": "group-by-station; headline = GroupKFold(5) CV (leakage-controlled)",
+    "cv_r2_log": 0.24618464986327715,
+    "cv_rmse_log": 0.17015633907859534,
+    "train_r2_log": 0.5982060172016417,
+    "overfit_gap_log": 0.35202136733836453,
+    "single_split_r2_log": 0.17051410009910117,
+    "single_split_rmse_log": 0.24950702740068695,
+    "single_split_r2_raw": 0.07721776101355016,
+    "single_split_rmse_raw": 0.8826553534237367,
+    "hpo_cv_rmse_log": 0.1532259611111559,
+    "n_test_split": 359,
+    "stations_test_split": 11
+  },
+  "coverage_track": {
+    "design": "intervals: quantile regressors on random 70% fit, CQR-calibrated on 15%, conformal coverage on 15% test (point-model-independent)",
+    "n_fit": 1621,
+    "n_calib": 347,
+    "n_test": 348,
+    "confidence": 0.9,
+    "cqr_correction": 0.001523338258266449,
+    "coverage_test": 0.9195402298850575,
+    "mean_width_test": 0.3495955765247345,
+    "deployed_point_model": "refit on all 2316 rows (skill from Track-A CV)",
+    "deployed_point_model_n": 2316
+  },
+  "best_params": {
+    "n_estimators": 237,
+    "max_depth": 6,
+    "learning_rate": 0.014320753996472377,
+    "subsample": 0.9231810640140996,
+    "colsample_bytree": 0.8932453914900428,
+    "min_child_weight": 11,
+    "reg_alpha": 0.0017022265467928834,
+    "reg_lambda": 1.6972229766581453,
+    "gamma": 0.0016110755024604112
+  },
+  "smearing_factor": 1.010271104629962,
+  "seed": 42
+}

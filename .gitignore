@@ -1,0 +1,32 @@
+# ── Python ──
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ── Node / Next.js ──
+node_modules/
+.next/
+next-env.d.ts
+
+# ── Environment / local config ──
+.env
+.env.local
+.env*.local
+
+# ── OS / editor ──
+.DS_Store
+
+# ── Generated figures (regenerable via make_*.py) ──
+*.png
+*.pdf
+# …but keep the committed manuscript figures (shown in the README)
+!figures/
+!figures/*.png
+!figures/*.pdf
+
+# ── Raw EPA source data (obtained externally; not redistributed here) ──
+Water Quality Data*.xlsx
+USEPA_GLNPO_Phytoplankton*.xlsx
+ReadytoDownload_*.xlsx
+GLENDA_with_TP_TEMPS_SIS_PHYTO.csv
