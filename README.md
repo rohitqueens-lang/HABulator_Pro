@@ -79,9 +79,9 @@ Cryptophytes, Cyanobacteria** — all trained and served.
 train_emulator.py            Training pipeline (Optuna HPO, CQR, smearing → artifacts)
 build_master_dataset_v2.py   Builds habulator_master_v2.csv from the raw EPA sources
 make_*.py                    Manuscript figure scripts (study area, performance, uncertainty, SHAP)
-habulator_master_v2.csv      Curated dataset (2,316 samples, 73 stations)
+habulator_master_v2.csv      Curated dataset (73 stations)
 *_metrics.json               Per-group training metrics
-figures/                     Generated manuscript figures (600 dpi PNG + vector PDF)
+figures/                     Generated manuscript figures
 habulator-api/               FastAPI inference service (main.py + trained model files)
 habulator-web/               Next.js web application
 ```
@@ -99,19 +99,6 @@ habulator-web/               Next.js web application
 ```bash
 git clone https://github.com/rohitqueens-lang/HABulator_Pro.git
 cd HABulator_Pro
-
-# Backend (port 8000) — trained model files are included in habulator-api/
-cd habulator-api
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-
-# Frontend (new terminal, port 3000)
-cd habulator-web
-npm install
-cp .env.example .env.local        # NEXT_PUBLIC_API_URL defaults to http://localhost:8000
-npm run dev                        # → http://localhost:3000
-```
-
 ---
 
 ## Inputs & Outputs
@@ -143,43 +130,6 @@ The API derives three further features before inference — `DOY_sin`, `DOY_cos`
 
 ---
 
-## API Reference
-
-Interactive docs at `https://<your-api>.onrender.com/docs`.
-
-```bash
-# Health
-GET /health
-
-# Predict
-POST /predict
-Content-Type: application/json
-
-{
-  "group": "EDIAT",
-  "TEMP": 12.5,
-  "TP": 8.3,
-  "SI": 1.2,
-  "NO23": 0.4,
-  "STN_DEPTH_M": 45.0,
-  "DOY": 120
-}
-```
-
----
-
-## Phytoplankton Groups
-
-| Code | Group | Status |
-|---|---|---|
-| `EDIAT` | Early Diatoms | ✅ Live |
-| `LDIAT` | Late Diatoms | ✅ Live |
-| `CHLOR` | Chlorophytes | ✅ Live |
-| `CRYPT` | Cryptophytes | ✅ Live |
-| `CYANO` | Cyanobacteria | ✅ Live |
-
----
-
 ## Reproducing the model & figures
 
 ```bash
@@ -189,23 +139,6 @@ python make_performance_figure.py            # and the other make_*.py figure sc
 ```
 
 Figures are written to `figures/` (600 dpi PNG + vector PDF).
-
----
-
-## Deployment
-
-### API → Render
-1. Push this repo to GitHub.
-2. [render.com](https://render.com) → **New Web Service** → connect the repo.
-3. **Root directory:** `habulator-api` · **Build:** `pip install -r requirements.txt` ·
-   **Start:** `uvicorn main:app --host 0.0.0.0 --port $PORT` · **Health check:** `/health`.
-   Trained model files are committed, so the service runs immediately.
-
-### Frontend → Vercel
-1. [vercel.com](https://vercel.com) → **Add New Project** → import the repo.
-2. **Root directory:** `habulator-web`.
-3. Environment variable: `NEXT_PUBLIC_API_URL = https://<your-api>.onrender.com`.
-4. Name the Vercel project starting with `habulator` — the API's CORS allows `habulator*.vercel.app`.
 
 ---
 
@@ -222,10 +155,6 @@ Figures are written to `figures/` (600 dpi PNG + vector PDF).
   exchangeability).
 - **Data** — U.S. EPA Great Lakes National Program Office (GLNPO / GLENDA), 2001–2021
   (73 stations).
-
----
-
-
 
 ---
 
