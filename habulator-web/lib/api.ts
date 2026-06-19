@@ -35,7 +35,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 // The backend runs on a free tier that sleeps after ~15 min idle; the first
 // request then cold-starts (~30-60s). Allow a generous timeout and one retry so
 // a cold start surfaces as a brief wait, not a failure.
-const PREDICT_TIMEOUT_MS = 90_000
+const PREDICT_TIMEOUT_MS = 120_000
 const MAX_RETRIES = 1
 
 function isRetriable(err: unknown): boolean {
