@@ -3,11 +3,16 @@ Habulator FastAPI backend
 =========================
 Serves phytoplankton biovolume predictions via XGBoost + quantile regression PI.
 
-Startup artifacts (loaded once):
+Model artifacts (LAZY-loaded on first request per group, then cached):
   ediat_model.json              — XGBoost mean booster (point predictions + SHAP)
   ediat_model_lower.json        — XGBoost lower quantile booster (adaptive PI)
   ediat_model_upper.json        — XGBoost upper quantile booster (adaptive PI)
   ediat_webapp_config.json      — smearing_factor, confidence, feature metadata
+
+Cold-start design: startup does NO model loading and runs NO self-test, so the
+service becomes healthy in seconds. Each group's artifacts load on its first
+/predict (cached thereafter). The golden self-test is available on demand at
+GET /selftest (it loads every group and verifies frozen outputs).
 
 Expected JSON keys in ediat_webapp_config.json:
   {
@@ -24,6 +29,7 @@ import json
 import logging
 import math
 import os
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -89,17 +95,32 @@ class ModelState:
         self.cqr_correction: float = 0.0  # conformal width Q (log), added to bounds
 
 
-# Registry: group ID -> ModelState. Populated at startup.
+# Registry: group ID -> ModelState. Populated lazily on first request per group.
 _models: dict[str, ModelState] = {}
+_load_lock = threading.Lock()  # guards lazy loading against concurrent first requests
 
-# ─── Startup self-test (catches artifact/code drift on deploy) ─────────────────
-# A fixed input whose expected output is frozen in selftest_golden.json. On startup
-# we recompute via the SAME predict core and assert it matches (within tolerance).
+# ─── Self-test (on-demand golden-output check; NOT run at startup) ──────────────
+# A fixed input whose expected output is frozen in selftest_golden.json. GET /selftest
+# recomputes via the SAME predict core and asserts it matches (within tolerance),
+# surfacing artifact/code drift. Kept off the startup path to keep cold starts fast.
 SELFTEST_INPUT = {"TEMP": 22.0, "TP": 40.0, "SI": 0.3, "NO23": 0.5, "STN_DEPTH_M": 15.0, "DOY": 210}
 GOLDEN_PATH = MODEL_DIR / "selftest_golden.json"
 SELFTEST_ATOL = 1e-4      # absolute tolerance (mg/L and log units)
 SELFTEST_RTOL = 1e-3      # relative tolerance (robust to xgboost patch-version float noise)
 _selftest: dict[str, Any] = {"ran": False, "passed": None}
+
+
+def _model_file_exists(group: str) -> bool:
+    return (MODEL_DIR / f"{group.lower()}_model.json").exists()
+
+
+def _available_groups() -> list[str]:
+    """Groups whose artifacts are present on disk (no loading)."""
+    return [g for g in GROUPS if _model_file_exists(g)]
+
+
+def _any_real_artifacts() -> bool:
+    return any(_model_file_exists(g) for g in GROUPS)
 
 
 def _load_group(group: str) -> ModelState | None:
@@ -134,24 +155,33 @@ def _load_group(group: str) -> ModelState | None:
     return st
 
 
-def _load_artifacts() -> None:
-    """Load every group's artifacts into the registry. Called once at startup."""
-    for g in GROUPS:
-        st = _load_group(g)
+def _get_model(group: str) -> ModelState | None:
+    """Return a group's ModelState, lazy-loading + caching on first use.
+    Falls back to a synthetic DEMO EDIAT only when no real artifacts exist at all."""
+    g = group.upper()
+    st = _models.get(g)
+    if st is not None:
+        return st
+    with _load_lock:
+        st = _models.get(g)            # double-checked under lock
         if st is not None:
-            _models[g] = st
-            log.info("Loaded %s — smearing=%.4f conf=%.2f Q=%.4f",
-                     g, st.smearing_factor, st.confidence, st.cqr_correction)
-        else:
-            log.warning("%s artifacts not found — group unavailable", g)
-
-    if not _models:
-        log.warning("No model artifacts found — DEMO mode (synthetic EDIAT)")
-        demo = ModelState()
-        demo.booster = _build_demo_booster()
-        demo.explainer = shap.TreeExplainer(demo.booster)
-        _models["EDIAT"] = demo
-    log.info("Models ready: %s", ", ".join(_models) or "none")
+            return st
+        if _model_file_exists(g):
+            st = _load_group(g)
+            if st is not None:
+                _models[g] = st
+                log.info("Lazy-loaded %s — smearing=%.4f conf=%.2f Q=%.4f",
+                         g, st.smearing_factor, st.confidence, st.cqr_correction)
+            return st
+        # No real artifacts anywhere -> serve a synthetic EDIAT so the app is usable.
+        if g == "EDIAT" and not _any_real_artifacts():
+            log.warning("No model artifacts found — building synthetic DEMO EDIAT (lazy)")
+            demo = ModelState()
+            demo.booster = _build_demo_booster()
+            demo.explainer = shap.TreeExplainer(demo.booster)
+            _models[g] = demo
+            return demo
+        return None
 
 
 def _build_demo_booster() -> xgb.Booster:
@@ -190,8 +220,8 @@ def _build_demo_booster() -> xgb.Booster:
 def _predict_core(st: ModelState, TEMP: float, TP: float, SI: float, NO23: float,
                   STN_DEPTH_M: float, DOY: float) -> dict[str, Any]:
     """Run the full prediction for one group. Returns unrounded values + per-feature
-    SHAP. The /predict route and the startup self-test both call this, so they can
-    never diverge."""
+    SHAP. The /predict route and the self-test both call this, so they can never
+    diverge."""
     doy_rad = 2 * math.pi * DOY / 365.0
     raw_values = {
         "TEMP": TEMP, "TP": TP, "SI": SI, "NO23": NO23, "STN_DEPTH_M": STN_DEPTH_M,
@@ -230,19 +260,20 @@ def _close(a: float, b: float) -> bool:
     return abs(a - b) <= SELFTEST_ATOL + SELFTEST_RTOL * abs(b)
 
 
-def _run_selftest() -> None:
-    """Assert a known input reproduces frozen golden outputs for every loaded group.
-    Surfaces artifact/code drift on deploy. Logs PASS/FAIL; result exposed in /health.
-    Set HABULATOR_STRICT_SELFTEST=1 to hard-fail startup on mismatch."""
+def _run_selftest() -> dict[str, Any]:
+    """Assert a known input reproduces frozen golden outputs for every golden group.
+    Lazy-loads each group as needed. Logs PASS/FAIL; result exposed at /selftest and
+    cached in /health. Set HABULATOR_STRICT_SELFTEST=1 to raise on mismatch."""
     if not GOLDEN_PATH.exists():
         log.warning("SELF-TEST skipped — %s not found", GOLDEN_PATH.name)
         _selftest.update(ran=False, passed=None, reason="no golden file")
-        return
+        return _selftest
     golden = json.loads(GOLDEN_PATH.read_text())
     inp, gset = golden["input"], golden["groups"]
     results: dict[str, bool] = {}
-    for g, st in _models.items():
-        if g not in gset or st.booster is None or st.explainer is None:
+    for g in gset:
+        st = _get_model(g)
+        if st is None or st.booster is None or st.explainer is None:
             continue
         got, exp = _predict_core(st, **inp), gset[g]
         diffs = [k for k in ("pred_mgL", "lower_mgL", "upper_mgL", "base_val")
@@ -264,14 +295,18 @@ def _run_selftest() -> None:
         log.error("SELF-TEST FAILED — artifact/code drift detected (%d/%d ok)",
                   sum(results.values()), len(results))
         if os.environ.get("HABULATOR_STRICT_SELFTEST") == "1":
-            raise RuntimeError("Startup self-test failed (strict mode)")
+            raise RuntimeError("Self-test failed (strict mode)")
+    return _selftest
 
 
 # ─── Lifespan ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _load_artifacts()
-    _run_selftest()
+    # No model loading / self-test here — keep cold starts fast. Models load lazily
+    # on first /predict; run the golden check on demand at GET /selftest.
+    avail = _available_groups()
+    log.info("Habulator API ready — lazy model loading enabled. Available groups: %s",
+             ", ".join(avail) or "none (DEMO mode)")
     yield
     log.info("Habulator API shutting down")
 
@@ -378,24 +413,24 @@ class PredictResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    model: str           # comma-joined loaded groups (back-compat)
-    groups: list[str]    # loaded group IDs
+    model: str           # comma-joined available groups (back-compat)
+    groups: list[str]    # available group IDs (artifacts present)
     version: str
     demo_mode: bool
-    selftest: dict[str, Any]   # startup golden-output self-test result
+    selftest: dict[str, Any]   # on-demand golden-output self-test result (run via /selftest)
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 async def health() -> HealthResponse:
-    loaded = list(_models)
-    real = any((MODEL_DIR / f"{g.lower()}_model.json").exists() for g in GROUPS)
-    # status is "ok" only if the startup self-test passed (or was not applicable)
+    real = _any_real_artifacts()
+    avail = _available_groups() if real else ["EDIAT"]   # demo serves a synthetic EDIAT
+    # "ok" unless an on-demand self-test has explicitly failed
     healthy = _selftest.get("passed") is not False
     return HealthResponse(
         status="ok" if healthy else "degraded",
-        model=",".join(loaded) or "none",
-        groups=loaded,
+        model=",".join(avail) or "none",
+        groups=avail,
         version="1.0.0",
         demo_mode=not real,
         selftest=_selftest,
@@ -404,19 +439,38 @@ async def health() -> HealthResponse:
 
 @app.get("/groups", tags=["meta"])
 async def groups() -> dict[str, Any]:
-    """Loaded groups with their PI confidence level — handy for the frontend."""
-    return {g: {"confidence": st.confidence,
-                "adaptive_pi": st.booster_lower is not None and st.booster_upper is not None}
-            for g, st in _models.items()}
+    """Available groups with their PI confidence level — read from config without
+    loading the boosters (cheap)."""
+    out: dict[str, Any] = {}
+    for g in _available_groups():
+        tag = g.lower()
+        conf = 0.90
+        cfg_path = MODEL_DIR / f"{tag}_webapp_config.json"
+        if cfg_path.exists():
+            try:
+                conf = float(json.loads(cfg_path.read_text()).get("confidence", 0.90))
+            except Exception:
+                pass
+        adaptive = (MODEL_DIR / f"{tag}_model_lower.json").exists() and \
+                   (MODEL_DIR / f"{tag}_model_upper.json").exists()
+        out[g] = {"confidence": conf, "adaptive_pi": adaptive}
+    return out
+
+
+@app.get("/selftest", tags=["meta"])
+async def selftest() -> dict[str, Any]:
+    """Run the golden-output self-test on demand (lazy-loads every group, then
+    verifies frozen outputs). Use this to confirm artifact/code integrity."""
+    return _run_selftest()
 
 
 @app.post("/predict", response_model=PredictResponse, tags=["prediction"])
 async def predict(req: PredictRequest) -> PredictResponse:
-    st = _models.get(req.group.upper())
+    st = _get_model(req.group.upper())
     if st is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Group '{req.group}' not available. Loaded: {', '.join(_models) or 'none'}",
+            detail=f"Group '{req.group}' not available. Available: {', '.join(_available_groups()) or 'none'}",
         )
     if st.booster is None or st.explainer is None:
         raise HTTPException(status_code=503, detail="Model not loaded — try again shortly")
