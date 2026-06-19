@@ -9,6 +9,8 @@ name: keep-render-warm
 # backend, upgrade the Render service to a paid (Starter) plan.
 
 on:
+  push:
+    branches: [main]           # also warm the backend on every deploy (and proves the action runs)
   schedule:
     - cron: "*/10 * * * *"   # every 10 minutes (UTC)
   workflow_dispatch: {}        # allow manual runs from the Actions tab / CLI
