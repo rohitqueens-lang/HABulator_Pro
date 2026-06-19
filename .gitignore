@@ -30,3 +30,12 @@ Water Quality Data*.xlsx
 USEPA_GLNPO_Phytoplankton*.xlsx
 ReadytoDownload_*.xlsx
 GLENDA_with_TP_TEMPS_SIS_PHYTO.csv
+
+# ── Private working docs — NEVER publish to GitHub (see working-tree STATUS.md §5b) ──
+# Personal references/notes for the manuscript — keep local only.
+REFERENCES.md
+references.md
+PAPER_NOTES.md
+paper.md
+Paper.md
+PAPER.md
