@@ -1,0 +1,42 @@
+name: keep-render-warm
+
+# Pings the Render free-tier API on a schedule so it does not spin down after
+# ~15 min of inactivity (and is not flagged inactive). This repo is public, so
+# GitHub Actions minutes are unlimited — the ping is free.
+#
+# Note: GitHub may delay scheduled runs under load, so a cron alone is best-effort;
+# the frontend also warms the backend on page load. For a guaranteed always-on
+# backend, upgrade the Render service to a paid (Starter) plan.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 minutes (UTC)
+  workflow_dispatch: {}        # allow manual runs from the Actions tab / CLI
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Ping /health (retry through a possible cold start)
+        run: |
+          set -u
+          URL="https://habulator-pro.onrender.com/health"
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /tmp/body.json -w "%{http_code}" --max-time 120 "$URL" || echo "000")
+            echo "attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Backend awake. Response:"; cat /tmp/body.json; echo
+              exit 0
+            fi
+            sleep 25
+          done
+          echo "::error::Backend did not return HTTP 200 after 5 attempts"
+          exit 1

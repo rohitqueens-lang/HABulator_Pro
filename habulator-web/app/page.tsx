@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import Header from '@/components/Header'
 import GroupTabs from '@/components/GroupTabs'
 import InputPanel from '@/components/InputPanel'
 import ResultPanel from '@/components/ResultPanel'
-import { predict, ApiError } from '@/lib/api'
+import { predict, warmUp, ApiError } from '@/lib/api'
 import { FEATURES } from '@/lib/utils'
 import type { InputFeatures, PredictionResult } from '@/lib/types'
 
@@ -23,6 +23,13 @@ export default function HomePage() {
   const [result, setResult] = useState<PredictionResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [waking, setWaking] = useState(false)
+  const wakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Warm the (free-tier) backend on first load so it is awake by predict time.
+  useEffect(() => {
+    void warmUp()
+  }, [])
 
   const handleChange = useCallback((key: keyof InputFeatures, value: number) => {
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -31,6 +38,9 @@ export default function HomePage() {
   const handlePredict = useCallback(async () => {
     setLoading(true)
     setError(null)
+    // If the call is slow (cold start), surface a reassuring notice after ~5s.
+    if (wakeTimer.current) clearTimeout(wakeTimer.current)
+    wakeTimer.current = setTimeout(() => setWaking(true), 5_000)
     try {
       const res = await predict(activeGroup, values)
       setResult(res)
@@ -38,10 +48,10 @@ export default function HomePage() {
       if (err instanceof ApiError) {
         setError(err.detail ?? err.message)
       } else if (err instanceof Error) {
-        if (err.name === 'TimeoutError' || err.message.includes('timeout')) {
-          setError('Request timed out. Make sure the API server is running.')
-        } else if (err.message.includes('fetch')) {
-          setError('Cannot reach the API server. Please check your connection and that the backend is running.')
+        if (err.name === 'TimeoutError' || err.name === 'AbortError' || err.message.includes('timeout')) {
+          setError('The model server is waking from sleep and did not respond in time. Please click Predict again in ~30 seconds — it should be ready.')
+        } else if (err.message.toLowerCase().includes('fetch') || err.message.toLowerCase().includes('network')) {
+          setError('Cannot reach the model server. Please check your connection and try again in a moment.')
         } else {
           setError(err.message)
         }
@@ -49,6 +59,8 @@ export default function HomePage() {
         setError('An unexpected error occurred.')
       }
     } finally {
+      if (wakeTimer.current) clearTimeout(wakeTimer.current)
+      setWaking(false)
       setLoading(false)
     }
   }, [activeGroup, values])
@@ -111,6 +123,29 @@ export default function HomePage() {
           </motion.div>
         )}
 
+        {/* Cold-start notice */}
+        {loading && waking && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl px-4 py-3 flex items-center gap-3"
+            style={{
+              background: 'rgba(15,92,140,0.08)',
+              border: '1px solid rgba(15,92,140,0.25)',
+            }}
+            role="status"
+          >
+            <span
+              className="h-3.5 w-3.5 flex-shrink-0 rounded-full border-2 border-sky-400/40 border-t-sky-400 animate-spin"
+              aria-hidden
+            />
+            <p className="text-sky-300/90 text-sm leading-relaxed">
+              Waking the model server — the first request after a period of inactivity can take
+              ~30–60&nbsp;seconds. Hang tight…
+            </p>
+          </motion.div>
+        )}
+
         {/* Two-column layout */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[420px_1fr] xl:grid-cols-[460px_1fr]">
           <InputPanel
@@ -149,4 +184,3 @@ export default function HomePage() {
     </div>
   )
 }
-
