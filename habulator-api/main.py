@@ -324,7 +324,6 @@ _ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3001",
     "https://habulator.vercel.app",
-    "https://*.vercel.app",
 ]
 
 app.add_middleware(

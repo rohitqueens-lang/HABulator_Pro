@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: habulator-api
+    name: habulator-pro
     env: python
     region: oregon
     plan: free
